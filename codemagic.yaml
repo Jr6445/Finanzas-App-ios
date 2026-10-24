@@ -1,0 +1,76 @@
+# Compila Finanzas como .ipa SIN firmar para instalarlo con SideStore.
+#
+# En Codemagic: Start new build -> rama main -> workflow "iOS sin firmar".
+# Al terminar, descarga Finanzas.ipa desde la sección Artifacts del build.
+
+workflows:
+  ios-sin-firmar:
+    name: iOS sin firmar (SideStore)
+    # Mac mini M2: incluido en los minutos gratis de Codemagic.
+    instance_type: mac_mini_m2
+    max_build_duration: 45
+
+    environment:
+      # La misma versión que usas en Windows. Si Codemagic aún no la tiene
+      # (sale un error "Flutter version ... is not available"), cámbiala a
+      # "stable".
+      flutter: 3.47.8
+      xcode: latest
+
+    cache:
+      cache_paths:
+        - $HOME/.pub-cache
+
+    scripts:
+      - name: Versiones
+        script: |
+          flutter --version
+          xcodebuild -version
+
+      - name: Dependencias
+        script: flutter pub get
+
+      - name: Generar código de drift
+        # El .g.dart ya está en el repo; se regenera por si quedó viejo.
+        script: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Tests
+        script: flutter test
+
+      - name: Compilar iOS (sin firmar)
+        # Si falla el Swift, el error aparece aquí, con la línea de
+        # ios/Runner/AppDelegate.swift. BUILD_NUMBER lo pone Codemagic y sube
+        # en cada build, así SideStore reconoce las versiones nuevas.
+        script: |
+          flutter build ios --release --no-codesign \
+            --build-number="$BUILD_NUMBER"
+
+      - name: Empaquetar .ipa
+        # Un .ipa es un zip con la app dentro de una carpeta "Payload".
+        # -y conserva los enlaces simbólicos de los frameworks.
+        script: |
+          rm -rf Payload Finanzas.ipa
+          mkdir Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry Finanzas.ipa Payload
+          ls -lh Finanzas.ipa
+
+      - name: Verificar el .ipa
+        # Revisa lo que no puedes comprobar sin una Mac: que la acción de
+        # Atajos quedó dentro de la app y que el mínimo es iOS 16.
+        script: |
+          APP=Payload/Runner.app
+          echo "Bundle id:  $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $APP/Info.plist)"
+          echo "Versión:    $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' $APP/Info.plist) ($(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' $APP/Info.plist))"
+          echo "iOS mínimo: $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' $APP/Info.plist)"
+          if [ -d "$APP/Metadata.appintents" ]; then
+            echo "OK: la acción 'Registrar compra' está incluida:"
+            ls "$APP/Metadata.appintents"
+          else
+            echo "ERROR: falta Metadata.appintents; Atajos no verá la acción."
+            exit 1
+          fi
+
+    artifacts:
+      - Finanzas.ipa
+      - /tmp/xcodebuild_logs/*.log

@@ -14,6 +14,7 @@ class Compra {
     required this.categoriaId,
     required this.fecha,
     required this.origen,
+    this.cuentaId,
   });
 
   /// Para compras de Apple Pay es el id que generó el App Intent; así, si la
@@ -21,7 +22,14 @@ class Compra {
   final String id;
   final String comercio;
   final int montoCentavos;
+
+  /// Nombre de la cuenta. Se guarda copiado (y se actualiza si renombras la
+  /// cuenta) para que el Resumen y los filtros no necesiten la tabla de
+  /// cuentas.
   final String tarjeta;
+
+  /// Cuenta con la que se pagó; null en compras de una cuenta borrada.
+  final int? cuentaId;
 
   /// Null = sin categoría.
   final int? categoriaId;

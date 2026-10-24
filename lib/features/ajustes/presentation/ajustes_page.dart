@@ -113,7 +113,8 @@ class _AjustesPageState extends ConsumerState<AjustesPage> {
               CupertinoListSection.insetGrouped(
                 header: const EncabezadoSeccion('Respaldo'),
                 footer: const PieSeccion(
-                  'Genera dos archivos CSV (compras y categorías) que puedes '
+                  'Genera cuatro archivos CSV (compras, categorías, cuentas y '
+                  'movimientos) que puedes '
                   'guardar en Archivos o enviarte por correo. Se abren en '
                   'Excel o Numbers.',
                 ),

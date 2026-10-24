@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
 import '../../features/compras/domain/compra.dart';
+import '../../features/cuentas/domain/cuenta.dart';
+import '../../features/cuentas/domain/movimiento.dart';
 
 // Cada clase describe una tabla, como una entidad con Fluent API en EF Core.
 // drift genera a partir de ellas las consultas tipadas y una clase de fila
@@ -43,6 +45,14 @@ class Compras extends Table {
   DateTimeColumn get fecha => dateTime()();
   IntColumn get origen => intEnum<OrigenCompra>()();
 
+  /// v3. Null si se borró la cuenta (la compra conserva el nombre en
+  /// [tarjeta]).
+  IntColumn get cuentaId => integer().nullable().references(
+    Cuentas,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -57,4 +67,49 @@ class Presupuestos extends Table {
 
   @override
   Set<Column> get primaryKey => {categoriaId};
+}
+
+/// v3. Cuentas y tarjetas (ver features/cuentas/domain/cuenta.dart).
+@DataClassName('CuentaFila')
+class Cuentas extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get nombre => text().unique()();
+  IntColumn get tipo => intEnum<TipoCuenta>()();
+  TextColumn get color => text()();
+
+  /// Nombres alternativos, uno por línea.
+  TextColumn get alias => text().withDefault(const Constant(''))();
+  IntColumn get saldoInicialCentavos =>
+      integer().withDefault(const Constant(0))();
+  DateTimeColumn get fechaSaldoInicial => dateTime()();
+  IntColumn get limiteCentavos => integer().nullable()();
+  IntColumn get diaCorte => integer().nullable()();
+  IntColumn get diaPago => integer().nullable()();
+  IntColumn get diasRecordatorio => integer().withDefault(const Constant(3))();
+}
+
+/// v3. Depósitos, transferencias y ajustes.
+@DataClassName('MovimientoFila')
+class Movimientos extends Table {
+  TextColumn get id => text()();
+  IntColumn get tipo => intEnum<TipoMovimiento>()();
+
+  // SET NULL y no CASCADE: si borras la débito, el pago que hiciste desde
+  // ella a la crédito debe seguir bajando la deuda de la crédito.
+  IntColumn get cuentaOrigenId => integer().nullable().references(
+    Cuentas,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  IntColumn get cuentaDestinoId => integer().nullable().references(
+    Cuentas,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
+  IntColumn get montoCentavos => integer()();
+  DateTimeColumn get fecha => dateTime()();
+  TextColumn get nota => text().withDefault(const Constant(''))();
+
+  @override
+  Set<Column> get primaryKey => {id};
 }

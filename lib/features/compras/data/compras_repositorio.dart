@@ -78,6 +78,7 @@ class ComprasRepositorio {
     categoriaId: fila.categoriaId,
     fecha: fila.fecha,
     origen: fila.origen,
+    cuentaId: fila.cuentaId,
   );
 
   static ComprasCompanion _aCompanion(Compra c) => ComprasCompanion.insert(
@@ -88,5 +89,6 @@ class ComprasRepositorio {
     categoriaId: Value(c.categoriaId),
     fecha: c.fecha,
     origen: c.origen,
+    cuentaId: Value(c.cuentaId),
   );
 }

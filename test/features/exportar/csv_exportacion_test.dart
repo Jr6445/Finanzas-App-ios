@@ -2,6 +2,8 @@ import 'package:csv/csv.dart';
 import 'package:finanzas/features/categorias/domain/categoria.dart';
 import 'package:finanzas/features/categorias/domain/regla_categoria.dart';
 import 'package:finanzas/features/compras/domain/compra.dart';
+import 'package:finanzas/features/cuentas/domain/cuenta.dart';
+import 'package:finanzas/features/cuentas/domain/movimiento.dart';
 import 'package:finanzas/features/exportar/domain/csv_exportacion.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -71,5 +73,55 @@ void main() {
     );
     final filas = Csv().decode(texto.substring(1));
     expect(filas[1], ['Café', 'cafe', 'cafe', '40.00', 'starbucks | coffee']);
+  });
+
+  test('exporta movimientos con nombres de cuenta y ajustes negativos', () {
+    final cuentas = {
+      1: Cuenta(
+        id: 1,
+        nombre: 'Débito',
+        tipo: TipoCuenta.debito,
+        color: 'verde',
+        fechaSaldoInicial: DateTime(2026),
+      ),
+      2: Cuenta(
+        id: 2,
+        nombre: 'Crédito',
+        tipo: TipoCuenta.credito,
+        color: 'azul',
+        fechaSaldoInicial: DateTime(2026),
+      ),
+    };
+    final texto = movimientosACsv([
+      Movimiento(
+        id: 'aj',
+        tipo: TipoMovimiento.ajuste,
+        cuentaDestinoId: 1,
+        montoCentavos: -50,
+        fecha: DateTime(2026, 10, 3),
+      ),
+      Movimiento(
+        id: 'pago',
+        tipo: TipoMovimiento.transferencia,
+        cuentaOrigenId: 1,
+        cuentaDestinoId: 2,
+        montoCentavos: 15000,
+        fecha: DateTime(2026, 10, 2),
+        nota: 'Abono',
+      ),
+    ], cuentas);
+
+    final filas = Csv().decode(texto.substring(1));
+    expect(filas[1], [
+      '2026-10-02 00:00',
+      'Transferencia',
+      'Débito',
+      'Crédito',
+      '150.00',
+      'Abono',
+      'pago',
+    ]);
+    // −$0.50 no debe perder el signo.
+    expect(filas[2][4], '-0.50');
   });
 }

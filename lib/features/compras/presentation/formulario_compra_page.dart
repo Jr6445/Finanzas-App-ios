@@ -8,6 +8,10 @@ import '../../categorias/application/categorias_providers.dart';
 import '../../categorias/domain/regla_categoria.dart';
 import '../../categorias/presentation/estilo_categoria.dart';
 import '../../categorias/presentation/selector_categoria_page.dart';
+import '../../cuentas/application/cuentas_providers.dart';
+import '../../cuentas/domain/cuenta.dart';
+import '../../cuentas/presentation/estilo_cuenta.dart';
+import '../../cuentas/presentation/selector_cuenta_page.dart';
 import '../application/compras_providers.dart';
 import '../domain/compra.dart';
 
@@ -25,9 +29,13 @@ class FormularioCompraPage extends ConsumerStatefulWidget {
 class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
   late final TextEditingController _comercio;
   late final TextEditingController _monto;
-  late final TextEditingController _tarjeta;
   late DateTime _fecha;
   int? _categoriaId;
+  int? _cuentaId;
+
+  /// Nombre de tarjeta de una compra vieja cuya cuenta ya no existe; se
+  /// conserva si el usuario no elige otra cuenta.
+  late String _tarjetaSinCuenta;
 
   /// Mientras el usuario no elija categoría a mano, se sugiere con las
   /// reglas conforme escribe el comercio.
@@ -38,7 +46,7 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
   bool get _valido =>
       _comercio.text.trim().isNotEmpty &&
       (parsearMonto(_monto.text) ?? 0) > 0 &&
-      _tarjeta.text.trim().isNotEmpty;
+      (_cuentaId != null || _tarjetaSinCuenta.isNotEmpty);
 
   @override
   void initState() {
@@ -48,18 +56,37 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
     _monto = TextEditingController(
       text: c == null ? null : montoParaEditar(c.montoCentavos),
     );
-    _tarjeta = TextEditingController(text: c?.tarjeta);
     _fecha = c?.fecha ?? DateTime.now();
     _categoriaId = c?.categoriaId;
     _categoriaElegida = _editando;
+    _tarjetaSinCuenta = c?.cuentaId == null ? (c?.tarjeta ?? '') : '';
+    // En una compra nueva se propone la cuenta usada la última vez (las
+    // compras vienen de la más reciente a la más antigua).
+    _cuentaId =
+        c?.cuentaId ??
+        (c == null
+            ? ref
+                  .read(comprasProvider)
+                  .value
+                  ?.where((x) => x.cuentaId != null)
+                  .firstOrNull
+                  ?.cuentaId
+            : null);
   }
 
   @override
   void dispose() {
     _comercio.dispose();
     _monto.dispose();
-    _tarjeta.dispose();
     super.dispose();
+  }
+
+  Future<void> _elegirCuenta() async {
+    final elegida = await abrirPantalla<Cuenta>(
+      context,
+      SelectorCuentaPage(titulo: 'Cuenta', seleccionada: _cuentaId),
+    );
+    if (elegida != null) setState(() => _cuentaId = elegida.id);
   }
 
   void _alCambiarComercio(String texto) {
@@ -103,6 +130,7 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
 
   Future<void> _guardar() async {
     final original = widget.compra;
+    final cuenta = ref.read(cuentasPorIdProvider)[_cuentaId];
     await ref
         .read(comprasRepositorioProvider)
         .guardar(
@@ -110,7 +138,8 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
             id: original?.id ?? const Uuid().v4(),
             comercio: _comercio.text.trim(),
             montoCentavos: parsearMonto(_monto.text)!,
-            tarjeta: _tarjeta.text.trim(),
+            tarjeta: cuenta?.nombre ?? _tarjetaSinCuenta,
+            cuentaId: cuenta?.id,
             categoriaId: _categoriaId,
             fecha: _fecha,
             origen: original?.origen ?? OrigenCompra.manual,
@@ -134,7 +163,7 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
   @override
   Widget build(BuildContext context) {
     final categoria = ref.watch(categoriasPorIdProvider)[_categoriaId];
-    final tarjetas = ref.watch(tarjetasConocidasProvider);
+    final cuenta = ref.watch(cuentasPorIdProvider)[_cuentaId];
 
     return CupertinoPageScaffold(
       backgroundColor: CupertinoColors.systemGroupedBackground,
@@ -174,23 +203,22 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
                   ),
                   onChanged: (_) => setState(() {}),
                 ),
-                CupertinoTextFormFieldRow(
-                  prefix: const Text('Tarjeta'),
-                  controller: _tarjeta,
-                  placeholder: 'Ej. Efectivo',
-                  textAlign: TextAlign.end,
-                  textCapitalization: TextCapitalization.words,
-                  onChanged: (_) => setState(() {}),
-                ),
               ],
             ),
-            if (tarjetas.isNotEmpty)
-              _SugerenciasTarjeta(
-                tarjetas: tarjetas,
-                alElegir: (t) => setState(() => _tarjeta.text = t),
-              ),
             CupertinoListSection.insetGrouped(
               children: [
+                CupertinoListTile(
+                  leading: IconoCuenta(cuenta: cuenta),
+                  title: const Text('Cuenta'),
+                  additionalInfo: Text(
+                    cuenta?.nombre ??
+                        (_tarjetaSinCuenta.isEmpty
+                            ? 'Elegir'
+                            : _tarjetaSinCuenta),
+                  ),
+                  trailing: const CupertinoListTileChevron(),
+                  onTap: _elegirCuenta,
+                ),
                 CupertinoListTile(
                   leading: IconoCategoria.de(categoria),
                   title: const Text('Categoría'),
@@ -224,44 +252,6 @@ class _FormularioCompraPageState extends ConsumerState<FormularioCompraPage> {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Fila de "chips" con las tarjetas ya usadas, para no escribirlas cada vez.
-class _SugerenciasTarjeta extends StatelessWidget {
-  const _SugerenciasTarjeta({required this.tarjetas, required this.alElegir});
-
-  final List<String> tarjetas;
-  final ValueChanged<String> alElegir;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final t in {'Efectivo', ...tarjetas})
-            GestureDetector(
-              onTap: () => alElegir(t),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: CupertinoColors.tertiarySystemFill.resolveFrom(
-                    context,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(t, style: const TextStyle(fontSize: 14)),
-              ),
-            ),
-        ],
       ),
     );
   }

@@ -364,7 +364,7 @@ class _TarjetaTarjetas extends StatelessWidget {
     final mayor = resumen.porTarjeta.first.totalCentavos;
 
     return Tarjeta(
-      titulo: 'Tarjetas',
+      titulo: 'Cuentas',
       child: Column(
         children: [
           for (final t in resumen.porTarjeta)

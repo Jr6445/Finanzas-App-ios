@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/db/base_datos.dart';
 import '../../../core/platform/plataforma.dart';
 import '../../categorias/application/categorias_providers.dart';
+import '../../cuentas/application/cuentas_providers.dart';
 import '../data/compras_repositorio.dart';
 import '../data/fuente_compras.dart';
 import '../data/fuente_compras_fake.dart';
@@ -31,6 +32,7 @@ final importadorComprasProvider = Provider<ImportadorCompras>((ref) {
     fuente: ref.watch(fuenteComprasProvider),
     compras: ref.watch(comprasRepositorioProvider),
     categorias: ref.watch(categoriasRepositorioProvider),
+    cuentas: ref.watch(cuentasRepositorioProvider),
   );
 });
 
@@ -42,15 +44,4 @@ final comprasProvider = StreamProvider<List<Compra>>((ref) {
 
 final comprasPorDiaProvider = Provider<AsyncValue<List<GrupoDia>>>((ref) {
   return ref.watch(comprasProvider).whenData(agruparPorDia);
-});
-
-/// Tarjetas ya usadas, de la más usada a la menos, para sugerirlas en el
-/// formulario.
-final tarjetasConocidasProvider = Provider<List<String>>((ref) {
-  final compras = ref.watch(comprasProvider).value ?? const [];
-  final usos = <String, int>{};
-  for (final c in compras) {
-    usos[c.tarjeta] = (usos[c.tarjeta] ?? 0) + 1;
-  }
-  return usos.keys.toList()..sort((a, b) => usos[b]!.compareTo(usos[a]!));
 });
